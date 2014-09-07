@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:batch="http://www.springframework.org/schema/batch"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/batch
+       http://www.springframework.org/schema/batch/spring-batch.xsd">
+
+
+
+    <job id="importInvoicesJob" job-repository="jobRepository"
+         xmlns="http://www.springframework.org/schema/batch">
+        <decision id="existFileDecision" decider="existFileDecider">
+            <next on="EXIST" to="download"/>
+            <end on="NO_EXIST"/>
+        </decision>
+        <step id="download" next="readWriteProducts">
+            <tasklet ref="downloadTasklet"/>
+        </step>
+        <step id="readWriteProducts" next="skipDecision">
+            <tasklet allow-start-if-complete="true" transaction-manager="hibernateTransactionManager">
+                <chunk reader="reader" writer="writer" commit-interval="2" skip-limit="2">
+                    <skippable-exception-classes>
+                        <include class="java.lang.Exception"/>
+                    </skippable-exception-classes>
+                </chunk>
+                <transaction-attributes isolation="DEFAULT" />
+            </tasklet>
+        </step>
+        <decision id="skipDecision" decider="skipDecider">
+            <next on="COMPLETED WITH SKIPS" to="generateReport"/>
+            <next on="*" to="clean"/>
+        </decision>
+        <step id="generateReport" next="clean">
+            <tasklet ref="generateReportTasklet" allow-start-if-complete="true"/>
+        </step>
+        <step id="clean">
+            <tasklet ref="cleanTasklet" allow-start-if-complete="true"/>
+        </step>
+    </job>
+
+    <bean id="existFileDecider" class="zinchenko.sb.decider.ExistFileDecider">
+    </bean>
+
+    <bean id="downloadTasklet" class="zinchenko.sb.tasklet.DownloadTasklet" scope="step">
+        <property name="fileSource" value="#{jobParameters['sourceFile']}"/>
+        <property name="fileDestination" value="#{jobParameters['fileDestination']}"/>
+    </bean>
+    
+    <bean id="cleanTasklet" class="zinchenko.sb.tasklet.CleanTasklet"/>
+
+    <bean id="skipDecider" class="zinchenko.sb.decider.SkipDecider"></bean>
+
+    <bean id="generateReportTasklet" class="zinchenko.sb.tasklet.GenerateReportTasklet">
+
+    </bean>
+
+    <bean id="reader" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+        <property name="resource" value="#{jobParameters['fileDestination']}" />
+        <property name="linesToSkip" value="1" />
+        <property name="lineMapper">
+            <bean class="org.springframework.batch.item.file.mapping.DefaultLineMapper">
+                <property name="lineTokenizer">
+                    <bean class="org.springframework.batch.item.file.transform.DelimitedLineTokenizer">
+                        <property name="names" value="PRODUCT_ID,NAME,DESCRIPTION,PRICE" />
+                    </bean>
+                </property>
+                <property name="fieldSetMapper">
+                    <bean class="zinchenko.sb.ProductMapper" />
+                </property>
+            </bean>
+        </property>
+    </bean>
+
+    <bean id="writer" class="zinchenko.sb.ProductWriter">
+        <property name="productDao" ref="productDao"/>
+    </bean>
+
+
+
+
+
+
+    <!--<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource"-->
+          <!--destroy-method="close">-->
+        <!--<property name="driverClassName" value="com.mysql.jdbc.Driver" />-->
+        <!--<property name="url" value="jdbc:mysql://localhost:3306/sb" />-->
+        <!--<property name="username" value="root" />-->
+        <!--<property name="password" value="" />-->
+    <!--</bean>-->
+
+    <bean id="hibernateTransactionManager"
+          class="org.springframework.orm.hibernate4.HibernateTransactionManager">
+        <property name="sessionFactory" ref="sessionFactory" />
+    </bean>
+
+    <bean id="sessionFactory"
+          class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+        <property name="dataSource" ref="dataSource" />
+        <property name="packagesToScan" value="zinchenko.sb.model"/>
+        <property name="hibernateProperties">
+            <props>
+                <prop key="hibernate.dialect">org.hibernate.dialect.MySQLDialect</prop>
+                <!--<prop key="hibernate.hbm2ddl.auto">create</prop>-->
+                <prop key="hibernate.jdbc.batch_size">20</prop>
+                <prop key="show_sql">true</prop>
+                <prop key="format_sql">true</prop>
+            </props>
+        </property>
+    </bean>
+
+    <bean id="productDao" class="zinchenko.sb.dao.impl.ProductDaoImpl">
+        <property name="sessionFactory" ref="sessionFactory"/>
+    </bean>
+
+</beans>
