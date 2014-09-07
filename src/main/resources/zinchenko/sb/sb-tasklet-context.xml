@@ -3,4 +3,13 @@
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
 
+    <bean id="downloadTasklet" class="zinchenko.sb.tasklet.DownloadTasklet" scope="step">
+        <property name="fileSource" value="#{jobParameters['sourceFile']}"/>
+        <property name="fileDestination" value="#{jobParameters['fileDestination']}"/>
+    </bean>
+
+    <bean id="cleanTasklet" class="zinchenko.sb.tasklet.CleanTasklet"/>
+
+    <bean id="generateReportTasklet" class="zinchenko.sb.tasklet.GenerateReportTasklet"/>
+
 </beans>

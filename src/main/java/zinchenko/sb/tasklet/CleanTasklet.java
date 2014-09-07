@@ -10,6 +10,8 @@ import org.springframework.batch.repeat.RepeatStatus;
  */
 public class CleanTasklet implements Tasklet {
 
+    private
+
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         System.out.println("clean");
